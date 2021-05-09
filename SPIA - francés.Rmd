@@ -1,0 +1,148 @@
+---
+title: "Pathway Enrichment Analysis"
+subtitle: "(Análisis de enriquecimiento de vías)"
+author: "Karina y Jesica Formoso"
+output: html_document
+---
+
+Les technologies de la génomique, de la transcriptomique et de la protéomique génèrent de grandes quantités de données qui doivent ensuite être analysées de la manière la plus efficace possible. Une tendance de plus en plus marquée consiste à analyser les gènes obtenus dans des groupes fonctionnellement liés. Ceci est réalisé par le **Pathway enrichment analysis **. Le but de cette méthode est d'identifier des groupes de gènes avec des changements d'expression éventuellement modérés mais coordonnés dans différentes conditions biologiques. Il existe différents types d'analyses qui peuvent être effectuées et elles sont classées comme suit:
+
+- Compétitif vs. Autonome (Competitive vs. Self-contained).
+- Topologique vs. non topologique (Topological vs Non-Tophological).
+
+Ici, nous allons utiliser SPIA qui est une analyse mixte et topologique. Cette méthode calcule une valeur prenant en compte le changement de pli des gènes, le score pour l'enrichissement des voies et la topologie des voies de signalisation.
+Pour travailler avec SPIA, il est nécessaire d'avoir la liste des gènes différentiellement exprimés avec leurs changements de plis log et la liste complète des gènes sur la plate-for
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE) 
+
+```
+
+Pour cet exemple, nous allons utiliser la base de données **colorectal cancer [Affymetrix geneChip technology (GEE GSE4107)]**  et les packages SPIA et tidyverse:
+#### Installer SPIA
+source("https://bioconductor.org/biocLite.R")
+biocLite("SPIA")
+
+#### Installer tidyverse
+install.packages(tidyverse)
+
+
+```{r librerias}
+
+library(tidyverse)
+library(SPIA)
+
+select <- dplyr::select
+
+```
+
+
+##Analyse topologique de l'enrichissement des voies avec SPIA.
+
+Nous allons charger le jeu de données **colorectalcancer**, qui comprend un jeu de données appelé "top". Avec la fonction head (), nous pouvons voir les 6 premières observations ou lignes.
+
+```{r data}
+
+data(colorectalcancer)
+head(top)
+
+```
+
+Nous allons utiliser le package hgu133plus2.db contenant Affymetrix Human Genome U133 Plus 2.0 Array annotation data à attribuer à chaque ID de la base **top** une **ENTREZ ID**. 
+
+```{r nombresgenes}
+
+library(hgu133plus2.db)
+x <- hgu133plus2ENTREZID
+top$ENTREZ <- unlist(as.list(x[top$ID]))
+
+
+```
+
+
+Nous allons sélectionner les observations qui n'ont pas de données manquantes et éliminer les données en double dans ENTREZ. Comme les observations sont ordonnées selon le log2FoldChange (logFC à la base), en conservant la première occurrence de chaque ENTREZ, on retient la plus significative de chaque probset.
+
+```{r limpiarTOP}
+
+
+top <- top %>% 
+  filter(!is.na(ENTREZ),
+         !duplicated(ENTREZ))
+
+```
+
+De plus, nous allons sélectionner les observations qui ont une valeur de p ajustée inférieure à 0,1.
+
+```{r padj}
+
+tg1 <- filter(top, adj.P.Val < 0.1)
+
+```
+
+Ensuite, nous créons un vecteur avec les valeurs logFC de la nouvelle base et utilisons la variable ENTREZ pour nommer les valeurs du vecteur.
+
+```{r col}
+
+DE_Colorectal <- tg1$logFC
+names(DE_Colorectal) <- tg1$ENTREZ
+
+
+```
+
+Nous créons un deuxième vecteur avec l'ENTREZ de la base TOP. Il s'agit de la base d'origine mais sans les valeurs manquantes ou répétées.
+
+```{r tot}
+
+ALL_Colorectal <- top$ENTREZ
+
+```
+
+Nous exécutons l'analyse à l'aide de la fonction SPIA (). Nous utilisons la méthode «fisher» pour étudier la signification de la représentation de nos gènes dans la voie de signalisation. 
+
+```{r SPIA, results=FALSE}
+
+resultados <- spia(de = DE_Colorectal, all = ALL_Colorectal, organism = "hsa", nB = 2000, plots = TRUE, verbose = TRUE, combine = "fisher")
+
+```
+
+Supprimons la colonne "KEGGLINK" et voyons les premières lignes de nos résultats:
+
+```{r resultados}
+
+resultados %>% 
+  select(-KEGGLINK) %>% 
+  head()
+
+```
+
+Le résultat obtenu est le suivant:
+
+### Colonnes:
+
+- pSize: le nombre de gènes dans la voie de signalisation.
+- NDE: le nombre de gènes différentiellement exprimés dans cette voie.
+- tA: l'accumulation totale des perturbations observées sur la route.
+- pNDE: la probabilité (valeur p) d'observer au moins les gènes NDE dans la voie à l'aide d'un modèle hypergéométrique (similaire à l'ORA)
+- pPERT: la probabilité (p-value) d'observer une accumulation totale plus extrême que tA juste par hasard
+- pG: la valeur p obtenue en combinant pNDE et pPERT
+- pGFdr et pGFWER: les valeurs de pG ajustées respectivement par le taux de fausses découvertes (FDR) et la méthode de Bonferroni.
+- Etat: indique si le canal est inhibé ou activé.
+- KEGGLINK: Fournit un lien Web vers le site Web de KEGG montrant l'image de la voie avec des gènes différentiellement exprimés surlignés en rouge.
+
+### Graphiques:
+
+Comme nous demandons à la fonction SPIA de générer les graphiques associés à ces résultats (tracés = TRUE), ceux-ci sont enregistrés sous forme de fichier pdf dans le répertoire dans lequel nous travaillons.
+
+Nous pouvons voir les voies considérablement déréglementées en regardant la surreprésentation et les perturbations de chaque voie.
+
+
+```{r plotP}
+
+plotP(resultados, threshold = 0.05)
+
+``` 
+
+Dans ce graphique, chaque chemin est un point et les coordonnées sont le logarithme du pNDE (en utilisant un modèle hypergéométrique) et la valeur p des perturbations (pPERT). Les lignes obliques montrent les régions d'importance sur la base des preuves combinées.
+
+lien vers le code complet: ....

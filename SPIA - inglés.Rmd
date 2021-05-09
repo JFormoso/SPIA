@@ -1,0 +1,149 @@
+---
+title: "Pathway Enrichment Analysis"
+subtitle: "(Análisis de enriquecimiento de vías)"
+author: "Karina y Jesica Formoso"
+output: html_document
+---
+
+
+Genomics, transcriptomics and proteomics technologies generate large amounts of data that must then be analyzed in the most efficient way possible. An increasingly marked trend is to analyze the genes obtained in functionally related groups. This is achieved by the **Pathway enrichment analysis **. The aim of this method is to identify groups of genes with possibly moderate but coordinated expression changes under different biological conditions. There are different types of analysis that can be performed and they are classified as:
+
+- Competitive vs. Self-contained.
+- Topological vs. non-topological.
+
+Here we are going to use SPIA which is a mixed and topological analysis. This method calculates a value taking into account the fold change of the genes, the score for the pathway enrichment and the topology of the signaling pathways.
+To work with SPIA it is necessary to have the list of differentially expressed genes with their log fold changes and the complete list of genes on the platform.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE) 
+
+```
+
+For this example we are going to use the data base **colorectal cancer [Affymetrix geneChip technology (GEE GSE4107)]** and the packages SPIA and tidyverse:
+
+#### Install SPIA
+source("https://bioconductor.org/biocLite.R")
+biocLite("SPIA")
+
+#### Install tidyverse
+install.packages(tidyverse)
+
+
+```{r librerias}
+
+library(tidyverse)
+library(SPIA)
+
+select <- dplyr::select
+
+```
+
+##Pathway enrichment topological analysis with SPIA.
+
+We are going to load the **colorectalcancer ** dataset, which includes a dataset called "top". With the head () function we can see the first 6 observations or rows.
+
+
+```{r data}
+
+data(colorectalcancer)
+head(top)
+
+```
+
+We are going to use the base hgu133plus2.db that contains Affymetrix Human Genome U133 Plus 2.0 Array annotation data to assing to each ID ot the **top** base one **ENTREZ ID**. 
+
+```{r nombresgenes}
+
+library(hgu133plus2.db)
+x <- hgu133plus2ENTREZID
+top$ENTREZ <- unlist(as.list(x[top$ID]))
+
+
+```
+We are going to select the observations that do not have missing data and eliminate the duplicate data in ENTREZ. As the observations are ordered according to the log2FoldChange (logFC in the base), by keeping the first occurrence of each ENTREZ, we retain the most significant of each probset.  
+
+```{r limpiarTOP}
+
+
+top <- top %>% 
+  filter(!is.na(ENTREZ),
+         !duplicated(ENTREZ))
+
+```
+
+In addition, we are going to select the observations that have an adjusted p-value less than 0.1.
+
+```{r padj}
+
+tg1 <- filter(top, adj.P.Val < 0.1)
+
+```
+
+Next, we are going to create a vector with the logFC values of the new base and use the variable ENTREZ to name the values of the vector.
+
+```{r col}
+
+DE_Colorectal <- tg1$logFC
+names(DE_Colorectal) <- tg1$ENTREZ
+
+
+```
+
+We are going to create a second vector with the ENTREZ of the TOP base. This is the original base but without the missing or repeated values. 
+
+```{r tot}
+
+ALL_Colorectal <- top$ENTREZ
+
+```
+
+Afterwards, we run the analysis using the SPIA () function. We use the "fisher" method to study the significance of the representation of our genes in the signaling pathway.
+
+```{r SPIA, results=FALSE}
+
+resultados <- spia(de = DE_Colorectal, all = ALL_Colorectal, organism = "hsa", nB = 2000, plots = TRUE, verbose = TRUE, combine = "fisher")
+
+```
+
+We are going to eliminate the column "KEGGLINK" and see the first line of our results:
+
+```{r resultados}
+
+resultados %>% 
+  select(-KEGGLINK) %>% 
+  head()
+
+```
+
+The result obtained is explained as follows:
+
+### Columns:
+
+- pSize: the number of genes in the signaling pathway.
+- NDE: the number of genes differentially expressed in this pathway.
+- tA: the total accumulation of disturbances observed on the road.
+- pNDE: the probability (p-value) of observing at least NDE genes in the pathway using a hypergeometric model 
+- pPERT: the probability (p-value) of observing a total accumulation more extreme than tA just by chance
+- pG: the p-value obtained by combining pNDE and pPERT
+- pGFdr and pGFWER: the pG values adjusted by the false discovery rate (FDR) and the Bonferroni method, respectively.
+- State: indicates if the channel is inhibited or activated.
+- KEGGLINK: Provides a web link to the KEGG website showing the image of the pathway with differentially expressed genes highlighted in red.
+
+### Graphics:
+
+As we tell the SPIA function to generate the graphs associated with these results (plots = TRUE), these are saved as a pdf file in the directory in which we are working.
+
+We can see the significantly deregulated pathways by looking at the overrepresentation and disturbances of each pathway.
+
+
+```{r plotP}
+
+plotP(resultados, threshold = 0.05)
+
+``` 
+
+
+In this graph, each way is a point and the coordinates are the logarithm of the pNDE (using a hypergeometric model) and the p-value of the disturbances (pPERT). The oblique lines show the regions of importance based on the combined evidence.
+
+link to the complete code: ....
