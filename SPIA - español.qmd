@@ -2,7 +2,12 @@
 title: "Pathway Enrichment Analysis"
 subtitle: "(Análisis de enriquecimiento de vías)"
 author: "Karina y Jesica Formoso"
-output: gfm
+format: 
+  gfm:
+    toc: true
+execute: 
+  echo: false
+  warning: false
 ---
 
 Las tecnologías de genómica, transcriptómica y proteómica generan grandes cantidades de datos que luego deben ser analizados de la manera más eficaz posible. Una tendencia cada vez más marcada es la de analizar los genes obtenidos en grupos funcionalmente relacionados. Esto se logra mediante el **Pathway enrichment analysis**. El objetivo de este método es identificar grupos de genes con cambios de expresión posiblemente moderados pero coordinados en diferentes condiciones biológicas. Hay distintos tipos de análisis que se pueden realizar y se clasifican en:
@@ -19,9 +24,9 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 ```
 
-Para este ejemplo vamos a utilizar la base de datos **colorectal cancer [Affymetrix geneChip technology (GEE GSE4107)]** y los paquetes SPIA y tidyverse:
+Para este ejemplo vamos a utilizar la base de datos **colorectal cancer [Affymetrix geneChip technology (GEE GSE4107)]** y los paquetes SPIA, hgu133plus2.db y tidyverse:
 
-#### Instalar y cargar los paquetes SPIA, tidyverse y hgu133plus2.db.
+### Instalar y cargar los paquetes SPIA, tidyverse y hgu133plus2.db.
 
 
 
