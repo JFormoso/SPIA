@@ -1,0 +1,156 @@
+---
+title: "Pathway Enrichment Analysis"
+subtitle: "(Análisis de enriquecimiento de vías)"
+author: "Karina y Jesica Formoso"
+output: gfm
+---
+
+Las tecnologías de genómica, transcriptómica y proteómica generan grandes cantidades de datos que luego deben ser analizados de la manera más eficaz posible. Una tendencia cada vez más marcada es la de analizar los genes obtenidos en grupos funcionalmente relacionados. Esto se logra mediante el **Pathway enrichment analysis**. El objetivo de este método es identificar grupos de genes con cambios de expresión posiblemente moderados pero coordinados en diferentes condiciones biológicas. Hay distintos tipos de análisis que se pueden realizar y se clasifican en:
+
+-	Competitivo vs. Autónomo (Competitive vs. Self-contained).
+-	Topológico vs. no topológico (Topological vs Non-Tophological). 
+
+Aquí vamos a utilizar SPIA que es un análisis mixto y topológica. Este método calcula un valor teniendo en cuenta el fold change de los genes, el score para el pathway enrichment y la topología de las vías de señalización. 
+Para trabajar con SPIA es necesario contar con la lista de genes diferencialmente expresados con sus log fold changes y la lista completa de genes en la plataforma. 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE) 
+
+```
+
+Para este ejemplo vamos a utilizar la base de datos **colorectal cancer [Affymetrix geneChip technology (GEE GSE4107)]** y los paquetes SPIA y tidyverse:
+
+#### Instalar y cargar los paquetes SPIA, tidyverse y hgu133plus2.db.
+
+
+
+```{r librerias}
+
+# if (!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+# BiocManager::install("SPIA")
+# BiocManager::install("hgu133plus2.db")
+ 
+# install.packages(tidyverse)
+
+library(tidyverse)
+library(SPIA)
+library(hgu133plus2.db)
+select <- dplyr::select
+
+```
+
+## Análisis topológico de enriquecimiento de vías con SPIA.
+
+Vamos a cargar el set de datos **colorectalcancer**, el cual incluye un dataset llamado "top". Con la función head() podemos ver las primeras 6 observaciones o filas. 
+
+```{r data}
+
+data(colorectalcancer)
+head(top)
+
+```
+
+Usamos el paquete hgu133plus2.db que contiene Affymetrix Human Genome U133 Plus 2.0 Array annotation data para asignarle a cada ID de la base **top** un **ENTREZ ID**. 
+
+```{r nombresgenes}
+
+x <- hgu133plus2ENTREZID
+top$ENTREZ <- unlist(as.list(x[top$ID]))
+
+
+```
+
+Vamos a seleccionar las observaciones que no tengan datos faltantes y eliminar los datos duplicados en ENTREZ. Como las observaciones están ordenadas según el log2FoldChange (logFC en la base), al quedarnos con la primera aparición de cada ENTREZ, retenemos la más significativa de cada probset.  
+
+```{r limpiarTOP}
+
+
+top <- top %>% 
+  filter(!is.na(ENTREZ),
+         !duplicated(ENTREZ))
+
+```
+
+Además, vamos a seleccionar las observaciones que tienen un p-valor ajustado menor a 0.1.
+
+```{r padj}
+
+tg1 <- filter(top, adj.P.Val < 0.1)
+
+```
+
+Luego, creamos un vector con los valores de logFC de la nueva base y utilizamos la variable ENTREZ para nombrar los valores del vector. 
+
+```{r col}
+
+DE_Colorectal <- tg1$logFC
+names(DE_Colorectal) <- tg1$ENTREZ
+
+
+```
+
+Creamos un segundo vector con los ENTREZ de la base TOP. Esta es la base original pero sin los valores faltantes o repetidos. 
+
+```{r tot}
+
+ALL_Colorectal <- top$ENTREZ
+
+```
+
+Corremos el análisis utilizando la función SPIA(). Utilizamos el método de "fisher" para estudiar la significancia de la representación de nuestros genes en la vía de señalización. 
+
+```{r SPIA, results=FALSE}
+
+resultados <- spia(de = DE_Colorectal, all = ALL_Colorectal, organism = "hsa", nB = 2000, plots = TRUE, verbose = TRUE, combine = "fisher")
+
+```
+
+Eliminemos la columna "KEGGLINK" y veamos las primeras líneas de nuestros resultados:
+
+```{r resultados}
+
+resultados %>% 
+  select(-KEGGLINK) %>% 
+  head()
+
+```
+
+El output obtenido es el siguiente: 
+
+### Columnas
+
+- pSize: el número de genes en la vía de señalización.
+- NDE: el número de genes diferencialmente expresados en esta vía.
+- tA:  la acumulación total de perturbaciones observadas en la vía.
+- pNDE: la probabilidad (p-valor) de observar al menos genes NDE en la vía utilizando un modelo hipergeométrico (similar a ORA)
+- pPERT: la probabilidad (p-valor) de observar una acumulación total más extrema que tA solo por casualidad
+- pG: el p-valor obtenido al combinar pNDE y pPERT
+- pGFdr y pGFWER: los valores pG ajustados por la tasa de descubrimiento falso (FDR) y el método de Bonferroni, respectivamente.
+- State: indica si la vía está inhibida o activada.
+- KEGGLINK: proporciona un enlace web al sitio web de KEGG que muestra la imagen de la ruta con los genes expresados diferencialmente resaltados en rojo.
+
+### Gráficos
+
+Como indicamos a la función SPIA que genere los gráficos asociados a estos resultados (plots = TRUE), estos se guardan como un archivo pdf en el directorio en el que estamos trabajando. 
+
+Podemos ver las vías significativamente desreguladas al ver la sobrerrepresentación y las perturbaciones de cada vía.
+
+
+```{r plotP}
+
+plotP(resultados, threshold = 0.05)
+
+``` 
+
+
+En este gráfico, cada vía es un punto y las coordenadas son el logaritmo de pNDE (usando un modelo hipergeométrico) y el p-valor de las perturbaciones (pPERT). Las líneas oblicuas muestran las regiones de importancia según la evidencia combinada.
+
+### Referencias
+
+- Tarca AL, Kathri P, Draghici S (2024). SPIA: Signaling Pathway Impact Analysis (SPIA) using combined evidence of pathway over-representation and unusual signaling perturbations. R package version 2.56.0, http://bioinformatics.oxfordjournals.org/cgi/reprint/btn577v1.
+- Wickham H, Averick M, Bryan J, Chang W, McGowan LD, François R, Grolemund G, Hayes A, Henry L, Hester J, Kuhn M, Pedersen TL, Miller E, Bache SM, Müller K, Ooms J, Robinson D, Seidel DP, Spinu V, Takahashi K, Vaughan D, Wilke C, Woo K, Yutani H (2019). “Welcome to the tidyverse.” Journal of Open Source Software, 4(43), 1686. doi:10.21105/joss.01686.
+- Carlson M (2016). hgu133plus2.db: Affymetrix Human Genome U133 Plus 2.0 Array annotation data (chip hgu133plus2). R package version 3.2.3.
+
+
